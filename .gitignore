@@ -1,0 +1,7 @@
+*.o
+*.sh
+src/mystation
+src/station-manager
+src/bus
+src/comptroller
+.DS_Store
