@@ -4,20 +4,20 @@ IDIR =../include
 ODIR=./obj
 
 CFLAGS=-I $(IDIR) -Wall
-LIBS=-lm
+LIBS=-pthread
 
 EXEC = mystation bus station-manager
 
-_DEPS = utility.h mystationUtility.h sharedSemaphores.h
+_DEPS = utility.h mystationUtility.h sharedSemaphores.h sharedMemory.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_MYSORT_OBJ = mystation.o utility.o mystationUtility.o
-MYSORT_OBJ = $(patsubst %,$(ODIR)/%,$(_MYSORT_OBJ))
+_MY_STATION_OBJ = mystation.o utility.o mystationUtility.o sharedMemory.o
+MY_STATION_OBJ = $(patsubst %,$(ODIR)/%,$(_MY_STATION_OBJ))
 
-_BUS_OBJ = bus.o utility.o
+_BUS_OBJ = bus.o utility.o sharedMemory.o
 BUS_OBJ = $(patsubst %,$(ODIR)/%,$(_BUS_OBJ))
 
-_STATION_MANAGER_OBJ = station-manager.o utility.o
+_STATION_MANAGER_OBJ = station-manager.o utility.o sharedMemory.o
 STATION_MANAGER_OBJ = $(patsubst %,$(ODIR)/%,$(_STATION_MANAGER_OBJ))
 
 
@@ -26,7 +26,7 @@ $(ODIR)/%.o: %.c $(DEPS) | $(ODIR)
 
 all: $(EXEC)
 
-mystation: $(MYSORT_OBJ)
+mystation: $(MY_STATION_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 	@echo "Executable file \"$@\" created";
 

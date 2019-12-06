@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <semaphore.h>
 
@@ -20,21 +22,20 @@ void getConfigfile(int argc, char **argv, char **configfile) {
 }
 
 
-void readConfigFile(char *filepath) {
+void readConfigFile(char *filepath, int bayCapacityPerType[3]) {
     char *line = NULL;
     size_t len = 0;
     ssize_t line_length;
-    char *type, *capacity, *maxParkTime;
+    char *type;
+    int capacity, maxParkTime;
     FILE *fp = callAndCheckPointer(fopen(filepath, "r"), "fopen");
 
     while ((line_length = getline(&line, &len, fp)) != -1) {
         if (line_length <= 0) continue;
         type = strtok(line, " ");
-        printf("%s ", type);
-        capacity = strtok(NULL, " ");
-        printf("%s ", capacity);
-        maxParkTime = strtok(NULL, " ");
-        printf("%s\n", maxParkTime);
+        capacity = atoi(strtok(NULL, " "));
+        maxParkTime = atoi(strtok(NULL, " "));
+        bayCapacityPerType[getIndexFromBusType(type)] = capacity;
     }
 
     if (line != NULL) {
@@ -47,9 +48,17 @@ void readConfigFile(char *filepath) {
 
 void createSemaphores() {
     sem_t *stationManagerMux = callAndCheckSemOpen(sem_open(STATIONMANAGERMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
-    sem_t *busesMux = callAndCheckSemOpen(sem_open(BUSESMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
     callAndCheckInt(sem_close(stationManagerMux), "sem_close");
+
+    sem_t *busesMux = callAndCheckSemOpen(sem_open(BUSESMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
     callAndCheckInt(sem_close(busesMux), "sem_close");
+
+    sem_t *messageSent = callAndCheckSemOpen(sem_open(MESSAGESENTMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
+    callAndCheckInt(sem_close(messageSent), "sem_close");
+
+    sem_t *messageRead = callAndCheckSemOpen(sem_open(MESSAGEREADMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
+    callAndCheckInt(sem_close(messageRead), "sem_close");
+
     printf("Coordinator: Created and opened semaphores\n");
 }
 
@@ -61,24 +70,36 @@ void removeSemaphores() {
 }
 
 
-void forkBus(int busIndex, int shmid) {
+void forkBus(int busIndex, int shmid, char *busType) {
     char busIndexStr[100], shmidStr[100];
     sprintf(busIndexStr, "%d", busIndex);
     sprintf(shmidStr, "%d", shmid);
 
-    char *coachArgv[4] = {"./bus", busIndexStr, shmidStr, NULL};
+    char *coachArgv[5] = {"./bus", busIndexStr, shmidStr, busType, NULL};
 
     callAndCheckInt(execv(coachArgv[0], coachArgv), "execv");
 }
 
 
-void forkAndExecBuses(int count, int shmid) {
+void forkAndExecBuses(int busesPerType[3], int shmid) {
     pid_t pid;
 
-    for (int busIndex = 0; busIndex < count; busIndex++) {
+    for (int busIndex = 0; busIndex < busesPerType[0]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus(busIndex, shmid);
+            forkBus(busIndex, shmid, "VOR");
+        }
+    }
+    for (int busIndex = 0; busIndex < busesPerType[1]; busIndex++) {
+        pid = callAndCheckInt(fork(), "fork");
+        if (pid == 0) {
+            forkBus(busIndex, shmid, "ASK");
+        }
+    }
+    for (int busIndex = 0; busIndex < busesPerType[2]; busIndex++) {
+        pid = callAndCheckInt(fork(), "fork");
+        if (pid == 0) {
+            forkBus(busIndex, shmid, "PEL");
         }
     }
 }
