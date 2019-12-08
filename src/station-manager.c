@@ -38,18 +38,11 @@ int main(int argc, char *argv[]) {
         printf("SManager: Sleep 3 sec\n");
         sleep(3);
 
-        printf("sem_getvalue: %d\n", sem_getvalue(stationManagerIncomingMux, &stationManagerIncomingValue));
-        perror("sem_getvalue");
-        printf("sem_getvalue: %d\n", sem_getvalue(stationManagerOutgoingMux, &stationManagerOutgoingValue));
-        perror("sem_getvalue");
-
-        printf("Sem stationManagerIncomingValue value %d\n", stationManagerIncomingValue);
-        printf("Sem stationManagerOutgoingValue value %d\n", stationManagerOutgoingValue);
+        sem_getvalue(stationManagerIncomingMux, &stationManagerIncomingValue);
+        sem_getvalue(stationManagerOutgoingMux, &stationManagerOutgoingValue);
 
         if (stationManagerIncomingValue < 0) {
             printf("SManager: ---- Communicating incoming with bus ----\n\n");
-
-            busesLeft--;
 
             printf("SManager: Up(stationManagerIncomingMux)\n");
             sem_post(stationManagerIncomingMux);

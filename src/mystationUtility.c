@@ -47,7 +47,7 @@ void readConfigFile(char *filepath, int bayCapacityPerType[3]) {
 
 
 void createSemaphores() {
-    sem_t *stationManagerIncomingMux = callAndCheckSemOpen(sem_open(STATIONMANAGERINCOMINGMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 10));
+    sem_t *stationManagerIncomingMux = callAndCheckSemOpen(sem_open(STATIONMANAGERINCOMINGMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
     callAndCheckInt(sem_close(stationManagerIncomingMux), "sem_close");
 
     sem_t *stationManagerOutgoingMux = callAndCheckSemOpen(sem_open(STATIONMANAGEROUTGOINGMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
