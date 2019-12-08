@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     getConfigfile(argc, argv, &configfile);
     readConfigFile(configfile, bayCapacityPerType);
 
-    shmid = callAndCheckInt(shmget(IPC_PRIVATE, BUSTYPESIZE + BAYCAPACITYPERTYPESIZE, 0666), "shmget");
+    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORYSIZE, 0666), "shmget");
     char *shmPointer = (char *) attachToSharedMemory(shmid);
     memcpy(shmPointer + BAYCAPACITYPERTYPEOFFSET, bayCapacityPerType, BAYCAPACITYPERTYPESIZE);
 

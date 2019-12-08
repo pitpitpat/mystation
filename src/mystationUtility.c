@@ -47,8 +47,11 @@ void readConfigFile(char *filepath, int bayCapacityPerType[3]) {
 
 
 void createSemaphores() {
-    sem_t *stationManagerMux = callAndCheckSemOpen(sem_open(STATIONMANAGERMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
-    callAndCheckInt(sem_close(stationManagerMux), "sem_close");
+    sem_t *stationManagerIncomingMux = callAndCheckSemOpen(sem_open(STATIONMANAGERINCOMINGMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 10));
+    callAndCheckInt(sem_close(stationManagerIncomingMux), "sem_close");
+
+    sem_t *stationManagerOutgoingMux = callAndCheckSemOpen(sem_open(STATIONMANAGEROUTGOINGMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
+    callAndCheckInt(sem_close(stationManagerOutgoingMux), "sem_close");
 
     sem_t *busesMux = callAndCheckSemOpen(sem_open(BUSESMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
     callAndCheckInt(sem_close(busesMux), "sem_close");
@@ -59,25 +62,31 @@ void createSemaphores() {
     sem_t *messageRead = callAndCheckSemOpen(sem_open(MESSAGEREADMUTEX, O_CREAT, S_IRUSR | S_IWUSR, 0));
     callAndCheckInt(sem_close(messageRead), "sem_close");
 
-    printf("Coordinator: Created and opened semaphores\n");
+    printf("Mystation: Created and opened semaphores\n");
 }
 
 
 void removeSemaphores() {
-    sem_unlink(STATIONMANAGERMUTEX);
+    sem_unlink(STATIONMANAGERINCOMINGMUTEX);
+    sem_unlink(STATIONMANAGEROUTGOINGMUTEX);
     sem_unlink(BUSESMUTEX);
-    printf("Coordinator: Deleted semaphores\n");
+    sem_unlink(MESSAGESENTMUTEX);
+    sem_unlink(MESSAGEREADMUTEX);
+    printf("Mystation: Deleted semaphores\n");
 }
 
 
-void forkBus(int busIndex, int shmid, char *busType) {
-    char busIndexStr[100], shmidStr[100];
-    sprintf(busIndexStr, "%d", busIndex);
+void forkBus(char *busType, int incpassengers, int capacity, int parkperiod, int mantime, int shmid) {
+    char incpassengersStr[20], capacityStr[20], parkperiodStr[20], mantimeStr[20], shmidStr[20];
+    sprintf(incpassengersStr, "%d", incpassengers);
+    sprintf(capacityStr, "%d", capacity);
+    sprintf(parkperiodStr, "%d", parkperiod);
+    sprintf(mantimeStr, "%d", mantime);
     sprintf(shmidStr, "%d", shmid);
 
-    char *coachArgv[5] = {"./bus", busIndexStr, shmidStr, busType, NULL};
+    char *busArgv[8] = {"./bus", busType, incpassengersStr, capacityStr, parkperiodStr, mantimeStr, shmidStr, NULL};
 
-    callAndCheckInt(execv(coachArgv[0], coachArgv), "execv");
+    callAndCheckInt(execv(busArgv[0], busArgv), "execv");
 }
 
 
@@ -87,19 +96,19 @@ void forkAndExecBuses(int busesPerType[3], int shmid) {
     for (int busIndex = 0; busIndex < busesPerType[0]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus(busIndex, shmid, "VOR");
+            forkBus("VOR", 30, 45, 8, 6, shmid);
         }
     }
     for (int busIndex = 0; busIndex < busesPerType[1]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus(busIndex, shmid, "ASK");
+            forkBus("ASK", 20, 30, 6, 6, shmid);
         }
     }
     for (int busIndex = 0; busIndex < busesPerType[2]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus(busIndex, shmid, "PEL");
+            forkBus("PEL", 10, 10, 4, 6, shmid);
         }
     }
 }
@@ -109,9 +118,9 @@ void forkStationManager(int shmid) {
     char shmidStr[100];
     sprintf(shmidStr, "%d", shmid);
 
-    char *coachArgv[3] = {"./station-manager", shmidStr, NULL};
+    char *stationManagerArgv[3] = {"./station-manager", shmidStr, NULL};
 
-    callAndCheckInt(execv(coachArgv[0], coachArgv), "execv");
+    callAndCheckInt(execv(stationManagerArgv[0], stationManagerArgv), "execv");
 }
 
 
@@ -127,5 +136,7 @@ void forkAndExecStationManager(int shmid) {
 
 void waitForChildren() {
     int status;
-    while(wait(&status) > 0);
+    while(wait(&status) > 0) {
+        printf("status: %d\n", status);
+    };
 }
