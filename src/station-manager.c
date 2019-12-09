@@ -9,7 +9,6 @@
 #include <semaphore.h>
 
 #include "utility.h"
-#include "sharedSemaphores.h"
 #include "sharedMemory.h"
 
 
@@ -17,17 +16,17 @@ int main(int argc, char *argv[]) {
     int shmid = atoi(argv[1]);
     int bayCapacityPerType[3];
     int stationManagerIncomingValue, stationManagerOutgoingValue;
-
     char *parkingBay;
 
-    sem_t *stationManagerIncomingMux = callAndCheckSemOpen(sem_open(STATIONMANAGERINCOMINGMUTEX, O_RDWR));
-    sem_t *stationManagerOutgoingMux = callAndCheckSemOpen(sem_open(STATIONMANAGEROUTGOINGMUTEX, O_RDWR));
-    sem_t *busesMux = callAndCheckSemOpen(sem_open(BUSESMUTEX, O_RDWR));
-    sem_t *messageSentMux = callAndCheckSemOpen(sem_open(MESSAGESENTMUTEX, O_RDWR));
-    sem_t *messageReadMux = callAndCheckSemOpen(sem_open(MESSAGEREADMUTEX, O_RDWR));
-
     char *shmPointer = (char *) attachToSharedMemory(shmid);
-    memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPEOFFSET, BAYCAPACITYPERTYPESIZE);
+
+    sem_t *stationManagerIncomingMux = (sem_t *) (shmPointer + STATIONMANAGERINCOMINGMUTEX_OFFSET);
+    sem_t *stationManagerOutgoingMux = (sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET);
+    sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
+    sem_t *messageSentMux = (sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET);
+    sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
+
+    memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPE_OFFSET, BAYCAPACITYPERTYPE_SIZE);
 
     int busesLeft = 6;
     while(1) {
@@ -35,8 +34,8 @@ int main(int argc, char *argv[]) {
         printf("SManager: Down(busesMux)\n");
         sem_wait(busesMux);
 
-        printf("SManager: Sleep 3 sec\n");
-        sleep(3);
+        printf("SManager: Sleep 2 sec\n");
+        sleep(2);
 
         sem_getvalue(stationManagerIncomingMux, &stationManagerIncomingValue);
         sem_getvalue(stationManagerOutgoingMux, &stationManagerOutgoingValue);
@@ -50,15 +49,15 @@ int main(int argc, char *argv[]) {
             printf("\n");
 
             sem_wait(messageSentMux);
-            printf("SManager: Read %s\n", shmPointer + BUSTYPEOFFSET);
-            if (bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPEOFFSET)] > 0) {
-                parkingBay = shmPointer + BUSTYPEOFFSET;
-                bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPEOFFSET)]--;
-                memcpy(shmPointer + BAYCAPACITYPERTYPEOFFSET, bayCapacityPerType, BAYCAPACITYPERTYPESIZE);
-            } else if (((!strcmp(shmPointer + BUSTYPEOFFSET, "VOR")) || (!strcmp(shmPointer + BUSTYPEOFFSET, "ASK"))) && bayCapacityPerType[getIndexFromBusType("PEL")] > 0) {
+            printf("SManager: Read %s\n", shmPointer + BUSTYPE_OFFSET);
+            if (bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPE_OFFSET)] > 0) {
+                parkingBay = shmPointer + BUSTYPE_OFFSET;
+                bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPE_OFFSET)]--;
+                memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
+            } else if (((!strcmp(shmPointer + BUSTYPE_OFFSET, "VOR")) || (!strcmp(shmPointer + BUSTYPE_OFFSET, "ASK"))) && bayCapacityPerType[getIndexFromBusType("PEL")] > 0) {
                 parkingBay = "PEL";
                 bayCapacityPerType[2]--;
-                memcpy(shmPointer + BAYCAPACITYPERTYPEOFFSET, bayCapacityPerType, BAYCAPACITYPERTYPESIZE);
+                memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
             } else {
                 parkingBay = "NONE";
             }
@@ -69,7 +68,7 @@ int main(int argc, char *argv[]) {
                 printf("No parking bay for you!\n");
             }
 
-            memcpy(shmPointer + BAYOFFSET, parkingBay, BAYSIZE);
+            memcpy(shmPointer + BAYTYPE_OFFSET, parkingBay, BAYTYPE_SIZE);
             sem_post(messageReadMux);
 
             printf("\n");
@@ -88,15 +87,10 @@ int main(int argc, char *argv[]) {
 
     }
 
-    printf("SManager: VOR capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPEOFFSET)));
-    printf("SManager: ASK capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPEOFFSET + sizeof(int))));
-    printf("SManager: PEL capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPEOFFSET + 2 * sizeof(int))));
+    printf("SManager: VOR capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)));
+    printf("SManager: ASK capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET + sizeof(int))));
+    printf("SManager: PEL capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET + 2 * sizeof(int))));
 
-    callAndCheckInt(sem_close(stationManagerIncomingMux), "sem_close");
-    callAndCheckInt(sem_close(stationManagerOutgoingMux), "sem_close");
-    callAndCheckInt(sem_close(busesMux), "sem_close");
-    callAndCheckInt(sem_close(messageSentMux), "sem_close");
-    callAndCheckInt(sem_close(messageReadMux), "sem_close");
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;
 }

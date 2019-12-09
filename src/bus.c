@@ -11,7 +11,6 @@
 #include <time.h>
 
 #include "utility.h"
-#include "sharedSemaphores.h"
 #include "sharedMemory.h"
 
 
@@ -25,13 +24,13 @@ int main(int argc, char *argv[]) {
     int busIndex = getpid();
     int passengersBoardedCount;
 
-    sem_t *stationManagerIncomingMux = callAndCheckSemOpen(sem_open(STATIONMANAGERINCOMINGMUTEX, O_RDWR));
-    sem_t *stationManagerOutgoingMux = callAndCheckSemOpen(sem_open(STATIONMANAGEROUTGOINGMUTEX, O_RDWR));
-    sem_t *busesMux = callAndCheckSemOpen(sem_open(BUSESMUTEX, O_RDWR));
-    sem_t *messageSentMux = callAndCheckSemOpen(sem_open(MESSAGESENTMUTEX, O_RDWR));
-    sem_t *messageReadMux = callAndCheckSemOpen(sem_open(MESSAGEREADMUTEX, O_RDWR));
-
     char *shmPointer = (char *) attachToSharedMemory(shmid);
+
+    sem_t *stationManagerIncomingMux = (sem_t *) (shmPointer + STATIONMANAGERINCOMINGMUTEX_OFFSET);
+    sem_t *stationManagerOutgoingMux = (sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET);
+    sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
+    sem_t *messageSentMux = (sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET);
+    sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
 
     printf("Bus %d: Up(busesMux)\n", busIndex);
     sem_post(busesMux);
@@ -42,11 +41,11 @@ int main(int argc, char *argv[]) {
     printf("Bus %d: ---- Communicating incoming with station-manager ----\n\n", busIndex);
 
     printf("Bus %d: Write %s\n", busIndex, busType);
-    strcpy(shmPointer + BUSTYPEOFFSET, busType);
+    strcpy(shmPointer + BUSTYPE_OFFSET, busType);
     sem_post(messageSentMux);
 
     sem_wait(messageReadMux);
-    printf("Bus %d: Read parking bay %s\n", busIndex, shmPointer + BAYOFFSET);
+    printf("Bus %d: Read parking bay %s\n", busIndex, shmPointer + BAYTYPE_OFFSET);
 
     printf("\n");
 
@@ -70,12 +69,6 @@ int main(int argc, char *argv[]) {
 
     printf("Bus %d: Left the station\n", busIndex);
 
-
-    callAndCheckInt(sem_close(stationManagerIncomingMux), "sem_close");
-    callAndCheckInt(sem_close(stationManagerOutgoingMux), "sem_close");
-    callAndCheckInt(sem_close(busesMux), "sem_close");
-    callAndCheckInt(sem_close(messageSentMux), "sem_close");
-    callAndCheckInt(sem_close(messageReadMux), "sem_close");
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;
 }

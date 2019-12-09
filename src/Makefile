@@ -4,11 +4,11 @@ IDIR =../include
 ODIR=./obj
 
 CFLAGS=-I $(IDIR) -Wall
-LIBS=-pthread
+LIBS=-lpthread
 
-EXEC = mystation bus station-manager
+EXEC = mystation station-manager bus
 
-_DEPS = utility.h mystationUtility.h sharedSemaphores.h sharedMemory.h
+_DEPS = utility.h mystationUtility.h sharedMemory.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
 _MY_STATION_OBJ = mystation.o utility.o mystationUtility.o sharedMemory.o
@@ -30,11 +30,11 @@ mystation: $(MY_STATION_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 	@echo "Executable file \"$@\" created";
 
-bus: $(BUS_OBJ)
+station-manager: $(STATION_MANAGER_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 	@echo "Executable file \"$@\" created";
 
-station-manager: $(STATION_MANAGER_OBJ)
+bus: $(BUS_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 	@echo "Executable file \"$@\" created";
 

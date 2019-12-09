@@ -16,18 +16,17 @@ int main(int argc, char *argv[]) {
     getConfigfile(argc, argv, &configfile);
     readConfigFile(configfile, bayCapacityPerType);
 
-    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORYSIZE, 0666), "shmget");
+    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORY_SIZE, 0666), "shmget");
     char *shmPointer = (char *) attachToSharedMemory(shmid);
-    memcpy(shmPointer + BAYCAPACITYPERTYPEOFFSET, bayCapacityPerType, BAYCAPACITYPERTYPESIZE);
+    initSemaphores(shmPointer);
 
-    createSemaphores();
+    memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
 
     forkAndExecStationManager(shmid);
     forkAndExecBuses(busesPerType, shmid);
 
     waitForChildren();
 
-    removeSemaphores();
     callAndCheckInt(shmctl(shmid, IPC_RMID, 0), "shmctl");
     printf("Removed shared memory\n");
     return 0;

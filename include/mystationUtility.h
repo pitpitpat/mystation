@@ -5,12 +5,11 @@
 
 void getConfigfile(int, char **, char **);
 void readConfigFile(char *, int *);
-void createSemaphores();
-void removeSemaphores();
-void forkBus(char *, int, int, int, int, int);
+void initSemaphores(char *);
 void forkAndExecBuses(int *, int);
-void forkStationManager(int);
+void forkBus(char *, int, int, int, int, int);
 void forkAndExecStationManager(int);
+void forkStationManager(int);
 void waitForChildren();
 
 #endif
