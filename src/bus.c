@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
     int shmid = atoi(argv[6]);
     int busIndex = getpid();
     int passengersBoardedCount;
+    int *incomingBusesCount, *outgoingBusesCount;
 
     char *shmPointer = (char *) attachToSharedMemory(shmid);
 
@@ -31,43 +32,83 @@ int main(int argc, char *argv[]) {
     sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
     sem_t *messageSentMux = (sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET);
     sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
+    sem_t *incomingBusesCountMux = (sem_t *) (shmPointer + INCOMINGBUSESCOUNTMUTEX_OFFSET);
+    sem_t *outgoingBusesCountMux = (sem_t *) (shmPointer + OUTGOINGBUSESCOUNTMUTEX_OFFSET);
 
-    printf("Bus %d: Up(busesMux)\n", busIndex);
+    incomingBusesCount = (int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET);
+    outgoingBusesCount = (int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET);
+
+
+
+    ///////////////////// Incoming /////////////////////
+
+    sem_wait(incomingBusesCountMux);
+    (*incomingBusesCount)++;
+    sem_post(incomingBusesCountMux);
+
     sem_post(busesMux);
-
-    printf("Bus %d: Down(stationManagerIncomingMux)\n", busIndex);
     sem_wait(stationManagerIncomingMux);
 
-    printf("Bus %d: ---- Communicating incoming with station-manager ----\n\n", busIndex);
+
+
+    printf("\nBus %d: ---- Communicating incoming with station-manager ----\n", busIndex);
 
     printf("Bus %d: Write %s\n", busIndex, busType);
     strcpy(shmPointer + BUSTYPE_OFFSET, busType);
+    memcpy(shmPointer + INCOMINGMANTIME_OFFSET, &mantime, INCOMINGMANTIME_SIZE);
     sem_post(messageSentMux);
 
+    // station-manager is reading message and writing response
     sem_wait(messageReadMux);
-    printf("Bus %d: Read parking bay %s\n", busIndex, shmPointer + BAYTYPE_OFFSET);
 
-    printf("\n");
+    printf("Bus %d: Read parking bay %s\n\n", busIndex, shmPointer + BAYTYPE_OFFSET);
+    sem_post(messageSentMux);
 
     // manouver in
+    printf("Bus %d: Manouver in for %d sec\n", busIndex, mantime);
+    sleep(mantime);
+
+
+
+
+    ///////////////////// PARK, LEAVE AND BOARD PASSENGERS /////////////////////
 
     printf("Bus %d: Waiting %d sec for passengers\n", busIndex, parkperiod);
     srand(time(0));
     passengersBoardedCount = (rand() % capacity) + 1;
     sleep(parkperiod);
 
-    printf("Bus %d: Down(stationManagerOutgoingMux)\n", busIndex);
+
+
+
+    ///////////////////// Outgoing /////////////////////
+
+    sem_wait(outgoingBusesCountMux);
+    (*outgoingBusesCount)++;
+    sem_post(outgoingBusesCountMux);
+
+    sem_post(busesMux);
     sem_wait(stationManagerOutgoingMux);
 
-    printf("Bus %d: ---- Communicating outgoing with station-manager ----\n\n", busIndex);
 
-    printf("Bus %d: Sent asdasdasdasa\n", busIndex);
 
-    printf("\n");
+    printf("\nBus %d: ---- Communicating outgoing with station-manager ----\n", busIndex);
+
+    printf("Bus %d: Write %s\n", busIndex, busType);
+    strcpy(shmPointer + BUSTYPE_OFFSET, busType);
+    memcpy(shmPointer + OUTGOINGMANTIME_OFFSET, &mantime, OUTGOINGMANTIME_OFFSET);
+    sem_post(messageSentMux);
+
+    // station-manager is reading message and writing response
+    sem_wait(messageReadMux);
+
+    printf("Bus %d: Read response\n\n", busIndex);
+    sem_post(messageSentMux);
 
     // manouver out
+    printf("Bus %d: manouver out for %d sec\n", busIndex, mantime);
+    sleep(mantime);
 
-    printf("Bus %d: Left the station\n", busIndex);
 
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;

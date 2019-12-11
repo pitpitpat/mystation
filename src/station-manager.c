@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <semaphore.h>
 
+#include "stationManagerUtility.h"
 #include "utility.h"
 #include "sharedMemory.h"
 
@@ -15,81 +16,77 @@
 int main(int argc, char *argv[]) {
     int shmid = atoi(argv[1]);
     int bayCapacityPerType[3];
-    int stationManagerIncomingValue, stationManagerOutgoingValue;
-    char *parkingBay;
+    sem_t *stationManagerIncomingMux, *stationManagerOutgoingMux, *busesMux, *messageSentMux, *messageReadMux, *incomingBusesCountMux, *outgoingBusesCountMux;
+    int *incomingBusesCount, *outgoingBusesCount, *incomingManTime, *outgoingManTime;
+    int incomingBusesCountValue, outgoingBusesCountValue;
 
     char *shmPointer = (char *) attachToSharedMemory(shmid);
+    getSemaphores(shmPointer, &stationManagerIncomingMux, &stationManagerOutgoingMux, &busesMux, &messageSentMux, &messageReadMux, &incomingBusesCountMux, &outgoingBusesCountMux);
 
-    sem_t *stationManagerIncomingMux = (sem_t *) (shmPointer + STATIONMANAGERINCOMINGMUTEX_OFFSET);
-    sem_t *stationManagerOutgoingMux = (sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET);
-    sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
-    sem_t *messageSentMux = (sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET);
-    sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
-
+    incomingBusesCount = (int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET);
+    outgoingBusesCount = (int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET);
+    incomingManTime = (int *) (shmPointer + INCOMINGMANTIME_OFFSET);
+    outgoingManTime = (int *) (shmPointer + OUTGOINGMANTIME_OFFSET);
     memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPE_OFFSET, BAYCAPACITYPERTYPE_SIZE);
 
     int busesLeft = 6;
     while(1) {
-        if (busesLeft <= 0) break;
-        printf("SManager: Down(busesMux)\n");
+        printf("     AFTER SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
         sem_wait(busesMux);
 
-        printf("SManager: Sleep 2 sec\n");
-        sleep(2);
+        if (*incomingManTime == 0) {
 
-        sem_getvalue(stationManagerIncomingMux, &stationManagerIncomingValue);
-        sem_getvalue(stationManagerOutgoingMux, &stationManagerOutgoingValue);
+            sem_wait(incomingBusesCountMux);
+            incomingBusesCountValue = *incomingBusesCount;
+            if (incomingBusesCountValue > 0) (*incomingBusesCount)--;
+            sem_post(incomingBusesCountMux);
 
-        if (stationManagerIncomingValue < 0) {
-            printf("SManager: ---- Communicating incoming with bus ----\n\n");
-
-            printf("SManager: Up(stationManagerIncomingMux)\n");
-            sem_post(stationManagerIncomingMux);
-
-            printf("\n");
-
-            sem_wait(messageSentMux);
-            printf("SManager: Read %s\n", shmPointer + BUSTYPE_OFFSET);
-            if (bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPE_OFFSET)] > 0) {
-                parkingBay = shmPointer + BUSTYPE_OFFSET;
-                bayCapacityPerType[getIndexFromBusType(shmPointer + BUSTYPE_OFFSET)]--;
-                memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
-            } else if (((!strcmp(shmPointer + BUSTYPE_OFFSET, "VOR")) || (!strcmp(shmPointer + BUSTYPE_OFFSET, "ASK"))) && bayCapacityPerType[getIndexFromBusType("PEL")] > 0) {
-                parkingBay = "PEL";
-                bayCapacityPerType[2]--;
-                memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
+            if (incomingBusesCountValue > 0) {
+                serveIncomingBus(shmPointer, stationManagerIncomingMux, messageSentMux, messageReadMux, bayCapacityPerType);
             } else {
-                parkingBay = "NONE";
+                printf("SManager: Sleep outgoingManTime %d sec\n", *outgoingManTime);
+                sleep(*outgoingManTime);
+                *outgoingManTime = 0;
+
+                sem_wait(outgoingBusesCountMux);
+                (*outgoingBusesCount)--;
+                sem_post(outgoingBusesCountMux);
+
+                serveOutgoingBus(shmPointer, stationManagerOutgoingMux, messageSentMux, messageReadMux, bayCapacityPerType);
+                busesLeft--;
             }
 
-            if (strcmp(parkingBay, "NONE") != 0) {
-                printf("SManager: Bay %s capacity %d -> %d\n", parkingBay, bayCapacityPerType[getIndexFromBusType(parkingBay)] + 1, bayCapacityPerType[getIndexFromBusType(parkingBay)]);
+        } else if (*outgoingManTime == 0) {
+
+            sem_wait(outgoingBusesCountMux);
+            outgoingBusesCountValue = *outgoingBusesCount;
+            if (outgoingBusesCountValue > 0) (*outgoingBusesCount)--;
+            sem_post(outgoingBusesCountMux);
+
+            if (outgoingBusesCountValue > 0) {
+                serveOutgoingBus(shmPointer, stationManagerOutgoingMux, messageSentMux, messageReadMux, bayCapacityPerType);
+                busesLeft--;
             } else {
-                printf("No parking bay for you!\n");
+                printf("SManager: Sleep incomingManTime %d sec\n", *incomingManTime);
+                sleep(*incomingManTime);
+                *incomingManTime = 0;
+
+                sem_wait(incomingBusesCountMux);
+                (*incomingBusesCount)--;
+                sem_post(incomingBusesCountMux);
+
+                serveIncomingBus(shmPointer, stationManagerIncomingMux, messageSentMux, messageReadMux, bayCapacityPerType);
             }
 
-            memcpy(shmPointer + BAYTYPE_OFFSET, parkingBay, BAYTYPE_SIZE);
-            sem_post(messageReadMux);
-
-            printf("\n");
         }
 
-        if (stationManagerOutgoingValue < 0) {
-            printf("SManager: ---- Communicating outgoing with bus ----\n\n");
+        if (busesLeft == 0) break;
 
-            busesLeft--;
-
-            printf("SManager: Up(stationManagerIncomingMux)\n");
-            sem_post(stationManagerOutgoingMux);
-
-            printf("\n");
-        }
-
+        printf("    BEFORE SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
+        sleepUntilOneLaneIsOpen(incomingManTime, outgoingManTime);
     }
 
-    printf("SManager: VOR capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)));
-    printf("SManager: ASK capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET + sizeof(int))));
-    printf("SManager: PEL capacity = %d\n", *((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET + 2 * sizeof(int))));
+    printBaysCapacity(shmPointer);
 
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;

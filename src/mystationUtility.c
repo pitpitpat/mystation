@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/shm.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <semaphore.h>
@@ -52,7 +53,30 @@ void initSemaphores(char *shmPointer) {
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET), 1, 0), "sem_init");
-    printf("Mystation: Initialized semaphores\n");
+    callAndCheckInt(sem_init((sem_t *) (shmPointer + INCOMINGBUSESCOUNTMUTEX_OFFSET), 1, 1), "sem_init");
+    callAndCheckInt(sem_init((sem_t *) (shmPointer + OUTGOINGBUSESCOUNTMUTEX_OFFSET), 1, 1), "sem_init");
+    printf("Mystation: Initialized semaphores\n\n");
+}
+
+
+void initSharedMemory(char *shmPointer, int bayCapacityPerType[3]) {
+    memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
+    *((int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET)) = 0;
+    *((int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET)) = 0;
+    *((int *) (shmPointer + INCOMINGMANTIME_OFFSET)) = 0;
+    *((int *) (shmPointer + OUTGOINGMANTIME_OFFSET)) = 0;
+}
+
+
+void destroySemaphores(char *shmPointer) {
+    sem_destroy((sem_t *) (shmPointer + STATIONMANAGERINCOMINGMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + BUSESMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + INCOMINGBUSESCOUNTMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + OUTGOINGBUSESCOUNTMUTEX_OFFSET));
+    printf("\nMystation: Destroyed semaphores\n");
 }
 
 
@@ -62,19 +86,19 @@ void forkAndExecBuses(int busesPerType[3], int shmid) {
     for (int busIndex = 0; busIndex < busesPerType[0]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("VOR", 30, 45, 8, 6, shmid);
+            forkBus("VOR", 30, 45, 8, 2, shmid);
         }
     }
     for (int busIndex = 0; busIndex < busesPerType[1]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("ASK", 20, 30, 6, 6, shmid);
+            forkBus("ASK", 20, 30, 6, 10, shmid);
         }
     }
     for (int busIndex = 0; busIndex < busesPerType[2]; busIndex++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("PEL", 10, 10, 4, 6, shmid);
+            forkBus("PEL", 10, 10, 4, 4, shmid);
         }
     }
 }
@@ -116,7 +140,11 @@ void forkStationManager(int shmid) {
 
 void waitForChildren() {
     int status;
-    while(wait(&status) > 0) {
-        printf("status: %d\n", status);
-    };
+    while(wait(&status) > 0);
+}
+
+
+void removeSharedMemory(int shmid) {
+    callAndCheckInt(shmctl(shmid, IPC_RMID, 0), "shmctl");
+    printf("Removed shared memory\n");
 }

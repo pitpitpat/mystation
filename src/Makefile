@@ -8,7 +8,7 @@ LIBS=-lpthread
 
 EXEC = mystation station-manager bus
 
-_DEPS = utility.h mystationUtility.h sharedMemory.h
+_DEPS = utility.h mystationUtility.h sharedMemory.h stationManagerUtility.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
 _MY_STATION_OBJ = mystation.o utility.o mystationUtility.o sharedMemory.o
@@ -17,7 +17,7 @@ MY_STATION_OBJ = $(patsubst %,$(ODIR)/%,$(_MY_STATION_OBJ))
 _BUS_OBJ = bus.o utility.o sharedMemory.o
 BUS_OBJ = $(patsubst %,$(ODIR)/%,$(_BUS_OBJ))
 
-_STATION_MANAGER_OBJ = station-manager.o utility.o sharedMemory.o
+_STATION_MANAGER_OBJ = station-manager.o utility.o sharedMemory.o stationManagerUtility.o
 STATION_MANAGER_OBJ = $(patsubst %,$(ODIR)/%,$(_STATION_MANAGER_OBJ))
 
 
