@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <semaphore.h>
+#include <time.h>
 
 #include "utility.h"
-
+#include "sharedMemory.h"
 
 void* callAndCheckPointer(void *response, char *errorName) {
     if (response == NULL){
@@ -33,7 +34,7 @@ void * callAndCheckSemOpen(void *response) {
 }
 
 
-int getIndexFromBusType(char *busType) {
+int getIndexFromType(char *busType) {
     if (!strcmp(busType, "VOR")) {
         return 0;
     } else if (!strcmp(busType, "ASK")) {
@@ -41,7 +42,20 @@ int getIndexFromBusType(char *busType) {
     } else if (!strcmp(busType, "PEL")) {
         return 2;
     } else {
-        perror("getIndexFromBusType: Invalid busType given.");
+        perror("getIndexFromType: Invalid busType given.");
         exit(EXIT_FAILURE);
     }
+}
+
+
+int getCapacityByBayType(char *shmPointer, char *bayType) {
+    return *(((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)) + getIndexFromType(bayType));
+}
+
+
+void getCurrentTime() {
+    char timeStr[100];
+    time_t now = time(0);
+    strftime(timeStr, 100, "%Y-%m-%d %H:%M:%S.000", localtime(&now));
+    printf("Current time is %s\n", timeStr);
 }

@@ -4,6 +4,8 @@
 void* callAndCheckPointer(void *, char *);
 int callAndCheckInt(int, char *);
 void* callAndCheckSemOpen(void *);
-int getIndexFromBusType(char *);
+int getIndexFromType(char *);
+int getCapacityByBayType(char *, char *);
+void getCurrentTime();
 
 #endif

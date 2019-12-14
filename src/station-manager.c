@@ -8,23 +8,23 @@
 #include <sys/stat.h>
 #include <semaphore.h>
 
-#include "stationManagerUtility.h"
 #include "utility.h"
+#include "stationManagerUtility.h"
 #include "sharedMemory.h"
 
 
 int main(int argc, char *argv[]) {
-    int shmid = atoi(argv[1]);
+    char *arguments[1];
     int bayCapacityPerType[3];
-    sem_t *stationManagerIncomingMux, *stationManagerOutgoingMux, *busesMux, *messageSentMux, *messageReadMux, *incomingBusesCountMux, *outgoingBusesCountMux;
-    int *incomingBusesCount, *outgoingBusesCount, *incomingManTime, *outgoingManTime;
-    int incomingBusesCountValue, outgoingBusesCountValue;
+    int *incomingManTime, *outgoingManTime;
+    int incomingBusesCount, outgoingBusesCount;
+
+    getCommandLineArguments(argc, argv, arguments);
+    int shmid = atoi(arguments[0]);
 
     char *shmPointer = (char *) attachToSharedMemory(shmid);
-    getSemaphores(shmPointer, &stationManagerIncomingMux, &stationManagerOutgoingMux, &busesMux, &messageSentMux, &messageReadMux, &incomingBusesCountMux, &outgoingBusesCountMux);
+    sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
 
-    incomingBusesCount = (int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET);
-    outgoingBusesCount = (int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET);
     incomingManTime = (int *) (shmPointer + INCOMINGMANTIME_OFFSET);
     outgoingManTime = (int *) (shmPointer + OUTGOINGMANTIME_OFFSET);
     memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPE_OFFSET, BAYCAPACITYPERTYPE_SIZE);
@@ -36,46 +36,30 @@ int main(int argc, char *argv[]) {
 
         if (*incomingManTime == 0) {
 
-            sem_wait(incomingBusesCountMux);
-            incomingBusesCountValue = *incomingBusesCount;
-            if (incomingBusesCountValue > 0) (*incomingBusesCount)--;
-            sem_post(incomingBusesCountMux);
-
-            if (incomingBusesCountValue > 0) {
-                serveIncomingBus(shmPointer, stationManagerIncomingMux, messageSentMux, messageReadMux, bayCapacityPerType);
+            incomingBusesCount = decreaseIncomingBusesCount(shmPointer);
+            if (incomingBusesCount > 0) {
+                serveIncomingBus(shmPointer, bayCapacityPerType, &busesLeft);
             } else {
                 printf("SManager: Sleep outgoingManTime %d sec\n", *outgoingManTime);
                 sleep(*outgoingManTime);
                 *outgoingManTime = 0;
 
-                sem_wait(outgoingBusesCountMux);
-                (*outgoingBusesCount)--;
-                sem_post(outgoingBusesCountMux);
-
-                serveOutgoingBus(shmPointer, stationManagerOutgoingMux, messageSentMux, messageReadMux, bayCapacityPerType);
-                busesLeft--;
+                decreaseOutgoingBusesCount(shmPointer);
+                serveOutgoingBus(shmPointer, bayCapacityPerType, &busesLeft);
             }
 
         } else if (*outgoingManTime == 0) {
 
-            sem_wait(outgoingBusesCountMux);
-            outgoingBusesCountValue = *outgoingBusesCount;
-            if (outgoingBusesCountValue > 0) (*outgoingBusesCount)--;
-            sem_post(outgoingBusesCountMux);
-
-            if (outgoingBusesCountValue > 0) {
-                serveOutgoingBus(shmPointer, stationManagerOutgoingMux, messageSentMux, messageReadMux, bayCapacityPerType);
-                busesLeft--;
+            outgoingBusesCount = decreaseOutgoingBusesCount(shmPointer);
+            if (outgoingBusesCount > 0) {
+                serveOutgoingBus(shmPointer, bayCapacityPerType, &busesLeft);
             } else {
                 printf("SManager: Sleep incomingManTime %d sec\n", *incomingManTime);
                 sleep(*incomingManTime);
                 *incomingManTime = 0;
 
-                sem_wait(incomingBusesCountMux);
-                (*incomingBusesCount)--;
-                sem_post(incomingBusesCountMux);
-
-                serveIncomingBus(shmPointer, stationManagerIncomingMux, messageSentMux, messageReadMux, bayCapacityPerType);
+                decreaseIncomingBusesCount(shmPointer);
+                serveIncomingBus(shmPointer, bayCapacityPerType, &busesLeft);
             }
 
         }
@@ -86,7 +70,7 @@ int main(int argc, char *argv[]) {
         sleepUntilOneLaneIsOpen(incomingManTime, outgoingManTime);
     }
 
-    printBaysCapacity(shmPointer);
+    printBaysCapacity(bayCapacityPerType);
 
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;

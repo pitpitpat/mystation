@@ -8,107 +8,63 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <semaphore.h>
-#include <time.h>
 
 #include "utility.h"
+#include "busUtility.h"
 #include "sharedMemory.h"
 
 
 int main(int argc, char *argv[]) {
-    char *busType = argv[1];
-    int incpassengers = atoi(argv[2]);
-    int capacity = atoi(argv[3]);
-    int parkperiod = atoi(argv[4]);
-    int mantime = atoi(argv[5]);
-    int shmid = atoi(argv[6]);
-    int busIndex = getpid();
-    int passengersBoardedCount;
-    int *incomingBusesCount, *outgoingBusesCount;
+    int parkingIsleIndex, passengersBoardedCount;
+    char parkingBayType[4];
+    char *arguments[6];
+
+    getCommandLineArguments(argc, argv, arguments);
+    char *busType = arguments[0];
+    int incpassengers = atoi(arguments[1]);
+    int capacity = atoi(arguments[2]);
+    int parkperiod = atoi(arguments[3]);
+    int mantime = atoi(arguments[4]);
+    int shmid = atoi(arguments[5]);
 
     char *shmPointer = (char *) attachToSharedMemory(shmid);
-
     sem_t *stationManagerIncomingMux = (sem_t *) (shmPointer + STATIONMANAGERINCOMINGMUTEX_OFFSET);
     sem_t *stationManagerOutgoingMux = (sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET);
     sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
-    sem_t *messageSentMux = (sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET);
-    sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
+    sem_t *busesOutgoingMux = (sem_t *) (shmPointer + BUSESOUTGOINGMUTEX_OFFSET);
     sem_t *incomingBusesCountMux = (sem_t *) (shmPointer + INCOMINGBUSESCOUNTMUTEX_OFFSET);
     sem_t *outgoingBusesCountMux = (sem_t *) (shmPointer + OUTGOINGBUSESCOUNTMUTEX_OFFSET);
 
-    incomingBusesCount = (int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET);
-    outgoingBusesCount = (int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET);
-
-
-
-    ///////////////////// Incoming /////////////////////
+    ///////////////////// Entrance /////////////////////
 
     sem_wait(incomingBusesCountMux);
-    (*incomingBusesCount)++;
+    (*((int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET)))++;
     sem_post(incomingBusesCountMux);
 
     sem_post(busesMux);
     sem_wait(stationManagerIncomingMux);
 
+    getServiceForEntranceByStationManager(shmPointer, busType, incpassengers, mantime, parkingBayType, &parkingIsleIndex);
 
+    maneuver(mantime);
 
-    printf("\nBus %d: ---- Communicating incoming with station-manager ----\n", busIndex);
+    ///////////////////// DISEMBARK AND BOARD NEW PASSENGERS /////////////////////
 
-    printf("Bus %d: Write %s\n", busIndex, busType);
-    strcpy(shmPointer + BUSTYPE_OFFSET, busType);
-    memcpy(shmPointer + INCOMINGMANTIME_OFFSET, &mantime, INCOMINGMANTIME_SIZE);
-    sem_post(messageSentMux);
+    passengersBoardedCount = waitForNewPassengers(parkperiod, capacity);
 
-    // station-manager is reading message and writing response
-    sem_wait(messageReadMux);
-
-    printf("Bus %d: Read parking bay %s\n\n", busIndex, shmPointer + BAYTYPE_OFFSET);
-    sem_post(messageSentMux);
-
-    // manouver in
-    printf("Bus %d: Manouver in for %d sec\n", busIndex, mantime);
-    sleep(mantime);
-
-
-
-
-    ///////////////////// PARK, LEAVE AND BOARD PASSENGERS /////////////////////
-
-    printf("Bus %d: Waiting %d sec for passengers\n", busIndex, parkperiod);
-    srand(time(0));
-    passengersBoardedCount = (rand() % capacity) + 1;
-    sleep(parkperiod);
-
-
-
-
-    ///////////////////// Outgoing /////////////////////
+    ///////////////////// Departure /////////////////////
 
     sem_wait(outgoingBusesCountMux);
-    (*outgoingBusesCount)++;
+    (*((int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET)))++;
     sem_post(outgoingBusesCountMux);
 
+    sem_post(busesOutgoingMux);
     sem_post(busesMux);
     sem_wait(stationManagerOutgoingMux);
 
+    getServiceForDepartureByStationManager(shmPointer, busType, passengersBoardedCount, parkingBayType, parkingIsleIndex, mantime);
 
-
-    printf("\nBus %d: ---- Communicating outgoing with station-manager ----\n", busIndex);
-
-    printf("Bus %d: Write %s\n", busIndex, busType);
-    strcpy(shmPointer + BUSTYPE_OFFSET, busType);
-    memcpy(shmPointer + OUTGOINGMANTIME_OFFSET, &mantime, OUTGOINGMANTIME_OFFSET);
-    sem_post(messageSentMux);
-
-    // station-manager is reading message and writing response
-    sem_wait(messageReadMux);
-
-    printf("Bus %d: Read response\n\n", busIndex);
-    sem_post(messageSentMux);
-
-    // manouver out
-    printf("Bus %d: manouver out for %d sec\n", busIndex, mantime);
-    sleep(mantime);
-
+    maneuver(mantime);
 
     callAndCheckInt(shmdt(shmPointer), "shmdt");
     return 0;

@@ -4,6 +4,7 @@
 #include "utility.h"
 #include "mystationUtility.h"
 #include "sharedMemory.h"
+#include "isleInfo.h"
 
 
 int main(int argc, char *argv[]) {
@@ -12,10 +13,13 @@ int main(int argc, char *argv[]) {
     int busesPerType[3] = {1, 2, 3};
     int bayCapacityPerType[3];
 
+    getCurrentTime();
+
     getConfigfile(argc, argv, &configfile);
     readConfigFile(configfile, bayCapacityPerType);
 
-    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORY_SIZE, 0666), "shmget");
+    int baysCurrentInfoSize = ((bayCapacityPerType[0] + bayCapacityPerType[1] + bayCapacityPerType[2]) * sizeof(isleInfo));
+    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORY_SIZE + baysCurrentInfoSize, 0666), "shmget");
     char *shmPointer = (char *) attachToSharedMemory(shmid);
 
     initSemaphores(shmPointer);

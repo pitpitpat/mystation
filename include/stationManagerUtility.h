@@ -3,10 +3,17 @@
 
 #include <semaphore.h>
 
-void getSemaphores(char *, sem_t **, sem_t **, sem_t **, sem_t **, sem_t **, sem_t **, sem_t **);
-void serveIncomingBus(char *, sem_t *, sem_t *, sem_t *, int *);
-void serveOutgoingBus(char *, sem_t *, sem_t *, sem_t *, int *);
+void getCommandLineArguments(int, char **, char **);
+void serveIncomingBus(char *, int *, int *);
+void getAvailableIsleOrServeOutgoingBuses(char *, int *, char *, int *, char *, int *);
+void serveOutgoingBusesToFreeAnIsle(char *, int *, char *, int *, char *, int *);
+int findEmptyBayAndIsle(char *, int *, char *, char *, int *);
+void serveOutgoingBus(char *, int *, int *);
+int decreaseIncomingBusesCount(char *);
+int decreaseOutgoingBusesCount(char *);
+int findEmptyBayAndIsle(char *, int *, char *, char *, int *);
 void sleepUntilOneLaneIsOpen(int *, int *);
-void printBaysCapacity(char *);
+void printBaysCapacity(int *);
+void printBaysCurrentInfo(char *);
 
 #endif
