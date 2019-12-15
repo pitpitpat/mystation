@@ -47,17 +47,27 @@ isleInfo* getIsleInfoByBayType(char *shmPointer, char *bayType) {
 
 
 int getEmptyIsleIndex(char *shmPointer, char *bayType) {
+    sem_t *baysCurrentInfoMux = (sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET);
     isleInfo *bayIsleInfo = getIsleInfoByBayType(shmPointer, bayType);
+    int isleIndex = -1;
+
+    sem_wait(baysCurrentInfoMux);
     for (int i = 0; i < getCapacityByBayType(shmPointer, bayType); i++) {
         if ((bayIsleInfo + i)->isParked == 0) {
-            return i;
+            isleIndex = i;
+            break;
         }
     }
-    return -1;
+    sem_post(baysCurrentInfoMux);
+    return isleIndex;
 }
 
 
 void setIsleInfoByBayByIndex(char *shmPointer, char *bayType, int isleIndex, int isParked, int disembarkedPassengersCount, time_t arrivalTime) {
+    sem_t *baysCurrentInfoMux = (sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET);
     isleInfo *bayIsleInfo = getIsleInfoByBayType(shmPointer, bayType);
+
+    sem_wait(baysCurrentInfoMux);
     setIsleInfo(bayIsleInfo + isleIndex, isParked, disembarkedPassengersCount, arrivalTime);
+    sem_post(baysCurrentInfoMux);
 }

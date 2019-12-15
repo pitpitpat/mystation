@@ -14,22 +14,21 @@
 
 
 int main(int argc, char *argv[]) {
-    char *arguments[1];
+    char *arguments[2];
     int bayCapacityPerType[3];
     int *incomingManTime, *outgoingManTime;
     int incomingBusesCount, outgoingBusesCount;
 
     getCommandLineArguments(argc, argv, arguments);
-    int shmid = atoi(arguments[0]);
+    int busesLeft = atoi(arguments[0]);
+    int shmid = atoi(arguments[1]);
 
     char *shmPointer = (char *) attachToSharedMemory(shmid);
     sem_t *busesMux = (sem_t *) (shmPointer + BUSESMUTEX_OFFSET);
-
     incomingManTime = (int *) (shmPointer + INCOMINGMANTIME_OFFSET);
     outgoingManTime = (int *) (shmPointer + OUTGOINGMANTIME_OFFSET);
     memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPE_OFFSET, BAYCAPACITYPERTYPE_SIZE);
 
-    int busesLeft = 6;
     while(1) {
         printf("     AFTER SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
         sem_wait(busesMux);
@@ -64,7 +63,10 @@ int main(int argc, char *argv[]) {
 
         }
 
-        if (busesLeft == 0) break;
+        if (busesLeft == 0) {
+            sleep(*outgoingManTime);
+            break;
+        }
 
         printf("    BEFORE SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
         sleepUntilOneLaneIsOpen(incomingManTime, outgoingManTime);

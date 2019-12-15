@@ -53,9 +53,6 @@ int getCapacityByBayType(char *shmPointer, char *bayType) {
 }
 
 
-void getCurrentTime() {
-    char timeStr[100];
-    time_t now = time(0);
-    strftime(timeStr, 100, "%Y-%m-%d %H:%M:%S.000", localtime(&now));
-    printf("Current time is %s\n", timeStr);
+void formatTime(time_t timestamp, char timestampStr[25]) {
+    strftime(timestampStr, 25, "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
 }

@@ -8,25 +8,24 @@
 
 
 int main(int argc, char *argv[]) {
-    int shmid = 0;
-    char *configfile = NULL;
-    int busesPerType[3] = {1, 2, 3};
-    int bayCapacityPerType[3];
-
-    getCurrentTime();
+    char *configfile;
+    int totalBusesCount, totalIslesCount, baysCurrentInfoSegmentSize, shmid, configurationInfo[3][6];
 
     getConfigfile(argc, argv, &configfile);
-    readConfigFile(configfile, bayCapacityPerType);
+    readConfigFile(configfile, configurationInfo);
 
-    int baysCurrentInfoSize = ((bayCapacityPerType[0] + bayCapacityPerType[1] + bayCapacityPerType[2]) * sizeof(isleInfo));
-    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORY_SIZE + baysCurrentInfoSize, 0666), "shmget");
+    totalBusesCount = configurationInfo[0][1] + configurationInfo[1][1] + configurationInfo[2][1];
+    totalIslesCount = configurationInfo[0][0] + configurationInfo[1][0] + configurationInfo[2][0];
+    baysCurrentInfoSegmentSize = totalIslesCount * sizeof(isleInfo);
+
+    shmid = callAndCheckInt(shmget(IPC_PRIVATE, SHAREDMEMORY_SIZE + baysCurrentInfoSegmentSize, 0666), "shmget");
     char *shmPointer = (char *) attachToSharedMemory(shmid);
 
     initSemaphores(shmPointer);
-    initSharedMemory(shmPointer, bayCapacityPerType);
+    initSharedMemory(shmPointer, configurationInfo, totalIslesCount);
 
-    forkAndExecStationManager(shmid);
-    forkAndExecBuses(busesPerType, shmid);
+    forkAndExecStationManager(totalBusesCount, shmid);
+    forkAndExecBuses(configurationInfo, shmid);
 
     waitForChildren();
 

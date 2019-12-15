@@ -24,20 +24,22 @@ void getConfigfile(int argc, char **argv, char **configfile) {
 }
 
 
-void readConfigFile(char *filepath, int bayCapacityPerType[3]) {
+void readConfigFile(char *filepath, int configurationInfo[3][6]) {
     char *line = NULL;
     size_t len = 0;
     ssize_t line_length;
     char *type;
-    int capacity, maxParkTime;
     FILE *fp = callAndCheckPointer(fopen(filepath, "r"), "fopen");
 
     while ((line_length = getline(&line, &len, fp)) != -1) {
         if (line_length <= 0) continue;
         type = strtok(line, " ");
-        capacity = atoi(strtok(NULL, " "));
-        maxParkTime = atoi(strtok(NULL, " "));
-        bayCapacityPerType[getIndexFromType(type)] = capacity;
+        configurationInfo[getIndexFromType(type)][0] = atoi(strtok(NULL, " "));
+        configurationInfo[getIndexFromType(type)][1] = atoi(strtok(NULL, " "));
+        configurationInfo[getIndexFromType(type)][2] = atoi(strtok(NULL, " "));
+        configurationInfo[getIndexFromType(type)][3] = atoi(strtok(NULL, " "));
+        configurationInfo[getIndexFromType(type)][4] = atoi(strtok(NULL, " "));
+        configurationInfo[getIndexFromType(type)][5] = atoi(strtok(NULL, " "));
     }
 
     if (line != NULL) {
@@ -53,6 +55,7 @@ void initSemaphores(char *shmPointer) {
     callAndCheckInt(sem_init((sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESOUTGOINGMUTEX_OFFSET), 1, 0), "sem_init");
+    callAndCheckInt(sem_init((sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET), 1, 1), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGESENT2MUTEX_OFFSET), 1, 0), "sem_init");
@@ -62,13 +65,15 @@ void initSemaphores(char *shmPointer) {
 }
 
 
-void initSharedMemory(char *shmPointer, int bayCapacityPerType[3]) {
-    memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, bayCapacityPerType, BAYCAPACITYPERTYPE_SIZE);
+void initSharedMemory(char *shmPointer, int configurationInfo[3][6], int totalIslesCount) {
+    memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, &(configurationInfo[0][0]), sizeof(int));
+    memcpy(((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)) + 1, &(configurationInfo[1][0]), sizeof(int));
+    memcpy(((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)) + 2, &(configurationInfo[2][0]), sizeof(int));
     *((int *) (shmPointer + INCOMINGBUSESCOUNT_OFFSET)) = 0;
     *((int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET)) = 0;
     *((int *) (shmPointer + INCOMINGMANTIME_OFFSET)) = 0;
     *((int *) (shmPointer + OUTGOINGMANTIME_OFFSET)) = 0;
-    initManyIsleInfo((isleInfo *) (shmPointer + BAYSCURRENTINFO_OFFSET), bayCapacityPerType[0] + bayCapacityPerType[1] + bayCapacityPerType[2]);
+    initManyIsleInfo((isleInfo *) (shmPointer + BAYSCURRENTINFO_OFFSET), totalIslesCount);
 }
 
 
@@ -77,6 +82,7 @@ void destroySemaphores(char *shmPointer) {
     sem_destroy((sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + BUSESMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + BUSESOUTGOINGMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGESENT2MUTEX_OFFSET));
@@ -86,25 +92,25 @@ void destroySemaphores(char *shmPointer) {
 }
 
 
-void forkAndExecBuses(int busesPerType[3], int shmid) {
+void forkAndExecBuses(int configurationInfo[3][6], int shmid) {
     pid_t pid;
 
-    for (int i = 0; i < busesPerType[0]; i++) {
+    for (int i = 0; i < configurationInfo[0][1]; i++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("VOR", 30, 45, 8, 2, shmid);
+            forkBus("VOR", configurationInfo[0][2], configurationInfo[0][3], configurationInfo[0][4], configurationInfo[0][5], shmid);
         }
     }
-    for (int i = 0; i < busesPerType[1]; i++) {
+    for (int i = 0; i < configurationInfo[1][1]; i++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("ASK", 20, 30, 6, 10, shmid);
+            forkBus("ASK", configurationInfo[1][2], configurationInfo[1][3], configurationInfo[1][4], configurationInfo[1][5], shmid);
         }
     }
-    for (int i = 0; i < busesPerType[2]; i++) {
+    for (int i = 0; i < configurationInfo[2][1]; i++) {
         pid = callAndCheckInt(fork(), "fork");
         if (pid == 0) {
-            forkBus("PEL", 10, 10, 4, 4, shmid);
+            forkBus("PEL", configurationInfo[2][2], configurationInfo[2][3], configurationInfo[2][4], configurationInfo[2][5], shmid);
         }
     }
 }
@@ -124,21 +130,22 @@ void forkBus(char *busType, int incpassengers, int capacity, int parkperiod, int
 }
 
 
-void forkAndExecStationManager(int shmid) {
+void forkAndExecStationManager(int busesCount, int shmid) {
     pid_t pid;
 
     pid = callAndCheckInt(fork(), "fork");
     if (pid == 0) {
-        forkStationManager(shmid);
+        forkStationManager(busesCount, shmid);
     }
 }
 
 
-void forkStationManager(int shmid) {
-    char shmidStr[100];
+void forkStationManager(int busesCount, int shmid) {
+    char busesCountStr[100], shmidStr[100];
+    sprintf(busesCountStr, "%d", busesCount);
     sprintf(shmidStr, "%d", shmid);
 
-    char *stationManagerArgv[4] = {"./station-manager", "-s", shmidStr, NULL};
+    char *stationManagerArgv[6] = {"./station-manager", "-b", busesCountStr, "-s", shmidStr, NULL};
 
     callAndCheckInt(execv(stationManagerArgv[0], stationManagerArgv), "execv");
 }
