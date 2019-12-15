@@ -6,9 +6,9 @@ ODIR=./obj
 CFLAGS=-I $(IDIR) -Wall
 LIBS=-lpthread
 
-EXEC = mystation station-manager bus
+EXEC = mystation station-manager bus comptroller
 
-_DEPS = utility.h sharedMemory.h mystationUtility.h stationManagerUtility.h busUtility.h isleInfo.h
+_DEPS = utility.h sharedMemory.h mystationUtility.h stationManagerUtility.h busUtility.h comptrollerUtility.h isleInfo.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
 _MY_STATION_OBJ = mystation.o utility.o sharedMemory.o mystationUtility.o isleInfo.o
@@ -19,6 +19,9 @@ STATION_MANAGER_OBJ = $(patsubst %,$(ODIR)/%,$(_STATION_MANAGER_OBJ))
 
 _BUS_OBJ = bus.o utility.o sharedMemory.o busUtility.o
 BUS_OBJ = $(patsubst %,$(ODIR)/%,$(_BUS_OBJ))
+
+_COMPTROLLER_OBJ = comptroller.o utility.o sharedMemory.o comptrollerUtility.o isleInfo.o
+COMPTROLLER_OBJ = $(patsubst %,$(ODIR)/%,$(_COMPTROLLER_OBJ))
 
 
 $(ODIR)/%.o: %.c $(DEPS) | $(ODIR)
@@ -35,6 +38,10 @@ station-manager: $(STATION_MANAGER_OBJ)
 	@echo "Executable file \"$@\" created";
 
 bus: $(BUS_OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+	@echo "Executable file \"$@\" created";
+
+comptroller: $(COMPTROLLER_OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 	@echo "Executable file \"$@\" created";
 

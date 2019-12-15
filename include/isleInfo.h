@@ -14,6 +14,7 @@ void setIsleInfo(isleInfo *, int, int, time_t);
 void markAsEmptyIsleInfo(isleInfo *);
 void initManyIsleInfo(isleInfo *, int);
 isleInfo* getIsleInfoByBayType(char *, char *);
+isleInfo* getIsleInfoByBayTypeByIndex(char *, char *, int);
 int getEmptyIsleIndex(char *, char *);
 void setIsleInfoByBayByIndex(char *, char *, int, int, int, time_t);
 

@@ -9,10 +9,10 @@
 
 int main(int argc, char *argv[]) {
     char *configfile;
-    int totalBusesCount, totalIslesCount, baysCurrentInfoSegmentSize, shmid, configurationInfo[3][6];
+    int totalBusesCount, totalIslesCount, baysCurrentInfoSegmentSize, time, stattimes, shmid, configurationInfo[3][6];
 
     getConfigfile(argc, argv, &configfile);
-    readConfigFile(configfile, configurationInfo);
+    readConfigFile(configfile, configurationInfo, &time, &stattimes);
 
     totalBusesCount = configurationInfo[0][1] + configurationInfo[1][1] + configurationInfo[2][1];
     totalIslesCount = configurationInfo[0][0] + configurationInfo[1][0] + configurationInfo[2][0];
@@ -22,9 +22,10 @@ int main(int argc, char *argv[]) {
     char *shmPointer = (char *) attachToSharedMemory(shmid);
 
     initSemaphores(shmPointer);
-    initSharedMemory(shmPointer, configurationInfo, totalIslesCount);
+    initSharedMemory(shmPointer, configurationInfo);
 
     forkAndExecStationManager(totalBusesCount, shmid);
+    forkAndExecComptroller(time, stattimes, shmid);
     forkAndExecBuses(configurationInfo, shmid);
 
     waitForChildren();

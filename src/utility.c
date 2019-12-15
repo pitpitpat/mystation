@@ -56,3 +56,12 @@ int getCapacityByBayType(char *shmPointer, char *bayType) {
 void formatTime(time_t timestamp, char timestampStr[25]) {
     strftime(timestampStr, 25, "%Y-%m-%d %H:%M:%S", localtime(&timestamp));
 }
+
+
+double calculateDivision(double value1, double value2) {
+    if (value2 == 0) {
+        return 0;
+    } else {
+        return value1 / value2;
+    }
+}

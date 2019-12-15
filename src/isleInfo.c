@@ -46,6 +46,12 @@ isleInfo* getIsleInfoByBayType(char *shmPointer, char *bayType) {
 }
 
 
+isleInfo* getIsleInfoByBayTypeByIndex(char *shmPointer, char *bayType, int isleIndex) {
+    isleInfo *bayIsleInfo = getIsleInfoByBayType(shmPointer, bayType);
+    return (bayIsleInfo + isleIndex);
+}
+
+
 int getEmptyIsleIndex(char *shmPointer, char *bayType) {
     sem_t *baysCurrentInfoMux = (sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET);
     isleInfo *bayIsleInfo = getIsleInfoByBayType(shmPointer, bayType);

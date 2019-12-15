@@ -16,6 +16,8 @@ int decreaseOutgoingBusesCount(char *);
 int findEmptyBayAndIsle(char *, int *, char *, char *, int *);
 void sleepUntilOneLaneIsOpen(int *, int *);
 void insertEntryToReferenceLedger(time_t, pid_t, char *, char *, int, int, char *);
+void increaseStatistics(char *, int, int, int[3], int, int, double, double[3]);
+void printStatistics(char *);
 void printBaysCapacity(int *);
 void printBaysCurrentInfo(char *);
 

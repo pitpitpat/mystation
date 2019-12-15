@@ -24,7 +24,7 @@ void getConfigfile(int argc, char **argv, char **configfile) {
 }
 
 
-void readConfigFile(char *filepath, int configurationInfo[3][6]) {
+void readConfigFile(char *filepath, int configurationInfo[3][6], int *time, int *stattimes) {
     char *line = NULL;
     size_t len = 0;
     ssize_t line_length;
@@ -34,12 +34,17 @@ void readConfigFile(char *filepath, int configurationInfo[3][6]) {
     while ((line_length = getline(&line, &len, fp)) != -1) {
         if (line_length <= 0) continue;
         type = strtok(line, " ");
-        configurationInfo[getIndexFromType(type)][0] = atoi(strtok(NULL, " "));
-        configurationInfo[getIndexFromType(type)][1] = atoi(strtok(NULL, " "));
-        configurationInfo[getIndexFromType(type)][2] = atoi(strtok(NULL, " "));
-        configurationInfo[getIndexFromType(type)][3] = atoi(strtok(NULL, " "));
-        configurationInfo[getIndexFromType(type)][4] = atoi(strtok(NULL, " "));
-        configurationInfo[getIndexFromType(type)][5] = atoi(strtok(NULL, " "));
+        if (!strcmp(type, "comptroller")) {
+            *time = atoi(strtok(NULL, " "));
+            *stattimes = atoi(strtok(NULL, " "));
+        } else {
+            configurationInfo[getIndexFromType(type)][0] = atoi(strtok(NULL, " "));
+            configurationInfo[getIndexFromType(type)][1] = atoi(strtok(NULL, " "));
+            configurationInfo[getIndexFromType(type)][2] = atoi(strtok(NULL, " "));
+            configurationInfo[getIndexFromType(type)][3] = atoi(strtok(NULL, " "));
+            configurationInfo[getIndexFromType(type)][4] = atoi(strtok(NULL, " "));
+            configurationInfo[getIndexFromType(type)][5] = atoi(strtok(NULL, " "));
+        }
     }
 
     if (line != NULL) {
@@ -55,7 +60,9 @@ void initSemaphores(char *shmPointer) {
     callAndCheckInt(sem_init((sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESOUTGOINGMUTEX_OFFSET), 1, 0), "sem_init");
+    callAndCheckInt(sem_init((sem_t *) (shmPointer + BUSESLEFTCOUNTMUTEX_OFFSET), 1, 1), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET), 1, 1), "sem_init");
+    callAndCheckInt(sem_init((sem_t *) (shmPointer + STATISTICSMUTEX_OFFSET), 1, 1), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET), 1, 0), "sem_init");
     callAndCheckInt(sem_init((sem_t *) (shmPointer + MESSAGESENT2MUTEX_OFFSET), 1, 0), "sem_init");
@@ -65,7 +72,7 @@ void initSemaphores(char *shmPointer) {
 }
 
 
-void initSharedMemory(char *shmPointer, int configurationInfo[3][6], int totalIslesCount) {
+void initSharedMemory(char *shmPointer, int configurationInfo[3][6]) {
     memcpy(shmPointer + BAYCAPACITYPERTYPE_OFFSET, &(configurationInfo[0][0]), sizeof(int));
     memcpy(((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)) + 1, &(configurationInfo[1][0]), sizeof(int));
     memcpy(((int *) (shmPointer + BAYCAPACITYPERTYPE_OFFSET)) + 2, &(configurationInfo[2][0]), sizeof(int));
@@ -73,7 +80,8 @@ void initSharedMemory(char *shmPointer, int configurationInfo[3][6], int totalIs
     *((int *) (shmPointer + OUTGOINGBUSESCOUNT_OFFSET)) = 0;
     *((int *) (shmPointer + INCOMINGMANTIME_OFFSET)) = 0;
     *((int *) (shmPointer + OUTGOINGMANTIME_OFFSET)) = 0;
-    initManyIsleInfo((isleInfo *) (shmPointer + BAYSCURRENTINFO_OFFSET), totalIslesCount);
+    *((int *) (shmPointer + BUSESLEFTCOUNT_OFFSET)) = configurationInfo[0][1] + configurationInfo[1][1] + configurationInfo[2][1];
+    initManyIsleInfo((isleInfo *) (shmPointer + BAYSCURRENTINFO_OFFSET), configurationInfo[0][0] + configurationInfo[1][0] + configurationInfo[2][0]);
 }
 
 
@@ -82,7 +90,9 @@ void destroySemaphores(char *shmPointer) {
     sem_destroy((sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + BUSESMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + BUSESOUTGOINGMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + BUSESLEFTCOUNTMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + BAYSCURRENTINFOMUTEX_OFFSET));
+    sem_destroy((sem_t *) (shmPointer + STATISTICSMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGESENTMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET));
     sem_destroy((sem_t *) (shmPointer + MESSAGESENT2MUTEX_OFFSET));
@@ -148,6 +158,28 @@ void forkStationManager(int busesCount, int shmid) {
     char *stationManagerArgv[6] = {"./station-manager", "-b", busesCountStr, "-s", shmidStr, NULL};
 
     callAndCheckInt(execv(stationManagerArgv[0], stationManagerArgv), "execv");
+}
+
+
+void forkAndExecComptroller(int time, int stattimes, int shmid) {
+    pid_t pid;
+
+    pid = callAndCheckInt(fork(), "fork");
+    if (pid == 0) {
+        forkComptroller(time, stattimes, shmid);
+    }
+}
+
+
+void forkComptroller(int time, int stattimes, int shmid) {
+    char timeStr[100], stattimesStr[100], shmidStr[100];
+    sprintf(timeStr, "%d", time);
+    sprintf(stattimesStr, "%d", stattimes);
+    sprintf(shmidStr, "%d", shmid);
+
+    char *comptrollerArgv[8] = {"./comptroller", "-d", timeStr, "-t", stattimesStr, "-s", shmidStr, NULL};
+
+    callAndCheckInt(execv(comptrollerArgv[0], comptrollerArgv), "execv");
 }
 
 

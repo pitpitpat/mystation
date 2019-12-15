@@ -37,15 +37,18 @@ void serveIncomingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     memcpy(busType, shmPointer + BUSTYPE_OFFSET, BUSTYPE_SIZE);
     memcpy(&busPid, shmPointer + BUSPID_OFFSET, BUSPID_SIZE);
     memcpy(&passengersDisembarkedCount, shmPointer + PASSENGERSCOUNT_OFFSET, PASSENGERSCOUNT_SIZE);
-    printf("SManager: Read busType %s passengersDisembarkedCount %d\n", busType, passengersDisembarkedCount);
+    // printf("SManager: Read busType %s passengersDisembarkedCount %d\n", busType, passengersDisembarkedCount);
 
     getAvailableIsleOrServeOutgoingBuses(shmPointer, bayCapacityPerType, busType, busesLeft, bayType, &isleIndex);
 
-    now = time(0);
-    setIsleInfoByBayByIndex(shmPointer, bayType, isleIndex, 1, *((int *) (shmPointer + PASSENGERSCOUNT_OFFSET)), now);
+    now = time(NULL);
+    int busesDepartedCountPerType[3] = {0, 0, 0};
+    double timeStayedPerType[3] = {0, 0, 0};
+    setIsleInfoByBayByIndex(shmPointer, bayType, isleIndex, 1, passengersDisembarkedCount, now);
     insertEntryToReferenceLedger(now, busPid, busType, bayType, isleIndex, passengersDisembarkedCount, "Entered");
+    increaseStatistics(shmPointer, 1, 0, busesDepartedCountPerType, passengersDisembarkedCount, 0, 0, timeStayedPerType);
 
-    printf("SManager: Write bayType %s isleIndex %d   capacity %d -> %d\n", bayType, isleIndex, bayCapacityPerType[getIndexFromType(bayType)] + 1, bayCapacityPerType[getIndexFromType(bayType)]);
+    // printf("SManager: Write bayType %s isleIndex %d   capacity %d -> %d\n", bayType, isleIndex, bayCapacityPerType[getIndexFromType(bayType)] + 1, bayCapacityPerType[getIndexFromType(bayType)]);
     memcpy(shmPointer + BAYTYPE_OFFSET, bayType, BAYTYPE_SIZE);
     memcpy(shmPointer + ISLEINDEX_OFFSET, &isleIndex, ISLEINDEX_SIZE);
     sem_post(messageReadMux);
@@ -58,7 +61,7 @@ void serveIncomingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
 void getAvailableIsleOrServeOutgoingBuses(char *shmPointer, int bayCapacityPerType[3], char *busType, int *busesLeft, char *bayType, int *isleIndex) {
     int found = findEmptyBayAndIsle(shmPointer, bayCapacityPerType, busType, bayType, isleIndex);
     if (!found) {
-        printf("SManager: Waiting for an outgoing bus to free a spot\n");
+        // printf("SManager: Waiting for an outgoing bus to free a spot\n");
         serveOutgoingBusesToFreeAnIsle(shmPointer, bayCapacityPerType, busType, busesLeft, bayType, isleIndex);
     }
 }
@@ -138,6 +141,7 @@ void serveOutgoingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     sem_t *stationManagerOutgoingMux = (sem_t *) (shmPointer + STATIONMANAGEROUTGOINGMUTEX_OFFSET);
     sem_t *messageSent2Mux = (sem_t *) (shmPointer + MESSAGESENT2MUTEX_OFFSET);
     sem_t *messageRead2Mux = (sem_t *) (shmPointer + MESSAGEREAD2MUTEX_OFFSET);
+    sem_t *busesLeftCountMux = (sem_t *) (shmPointer + BUSESLEFTCOUNTMUTEX_OFFSET);
     char busType[4], bayType[4];
     int busPid, passengersBoardedCount, isleIndex;
     time_t now;
@@ -152,11 +156,20 @@ void serveOutgoingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     memcpy(&passengersBoardedCount, shmPointer + PASSENGERSCOUNT_OFFSET, PASSENGERSCOUNT_SIZE);
     memcpy(bayType, shmPointer + BAYTYPE_OFFSET, BAYTYPE_SIZE);
     memcpy(&isleIndex, shmPointer + ISLEINDEX_OFFSET, ISLEINDEX_SIZE);
-    printf("SManager: Read busType %s passengersBoardedCount %d bayType %s isleIndex %d\n", busType, passengersBoardedCount, bayType, isleIndex);
+    // printf("SManager: Read busType %s passengersBoardedCount %d bayType %s isleIndex %d\n", busType, passengersBoardedCount, bayType, isleIndex);
 
-    now = time(0);
+    now = time(NULL);
+    int busesDepartedCountPerType[3] = {0, 0, 0};
+    isleInfo *busIsleInfo = getIsleInfoByBayTypeByIndex(shmPointer, bayType, isleIndex);
+    double timeStayed = difftime(now, busIsleInfo->arrivalTime);
+    double timeStayedPerType[3] = {0, 0, 0};
+    busesDepartedCountPerType[getIndexFromType(busType)] = 1;
+    timeStayedPerType[getIndexFromType(busType)] = timeStayed;
+
     setIsleInfoByBayByIndex(shmPointer, bayType, isleIndex, 0, 0, now);
     insertEntryToReferenceLedger(now, busPid, busType, bayType, isleIndex, passengersBoardedCount, "Departed");
+    increaseStatistics(shmPointer, 0, 1, busesDepartedCountPerType, 0, passengersBoardedCount, timeStayed, timeStayedPerType);
+
     bayCapacityPerType[getIndexFromType(busType)]++;
     sem_post(messageRead2Mux);
 
@@ -164,7 +177,9 @@ void serveOutgoingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     sem_wait(messageSent2Mux);
 
     (*busesLeft)--;
-
+    sem_wait(busesLeftCountMux);
+    (*((int *) (shmPointer + BUSESLEFTCOUNT_OFFSET)))--;
+    sem_post(busesLeftCountMux);
 }
 
 
@@ -219,6 +234,30 @@ void insertEntryToReferenceLedger(time_t timestamp, pid_t busPid, char *busType,
     formatTime(timestamp, timestampStr);
     fprintf(fp, "Timestamp: %s Id: %d Type: %s Bay: %s Isle: %d Passengers: %d Status: %s\n", timestampStr, busPid, busType, bayType, isleIndex, passengersCount, status);
     fclose(fp);
+}
+
+
+void increaseStatistics(char *shmPointer, int busesEnteredCount, int busesDepartedCount, int busesDepartedCountPerType[3], int passengersDisembarkedCount, int passengersBoardedCount, double timeStayed, double timeStayedPerType[3]) {
+    sem_t *statisticsMux = (sem_t *) (shmPointer + STATISTICSMUTEX_OFFSET);
+
+    sem_wait(statisticsMux);
+    *((int *) (shmPointer + TOTALBUSESENTEREDCOUNT_OFFSET)) += busesEnteredCount;
+    *((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNT_OFFSET)) += busesDepartedCount;
+    *((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)) += busesDepartedCountPerType[0];
+    *(((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)) + 1) += busesDepartedCountPerType[1];
+    *(((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)) + 2) += busesDepartedCountPerType[2];
+    *((int *) (shmPointer + TOTALPASSENGERSDISEMBARKEDCOUNT_OFFSET)) += passengersDisembarkedCount;
+    *((int *) (shmPointer + TOTALPASSENGERSBOARDEDCOUNT_OFFSET)) += passengersBoardedCount;
+    *((double *) (shmPointer + TOTALTIMESTAYED_OFFSET)) += timeStayed;
+    *((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)) += timeStayedPerType[0];
+    *(((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)) + 1) += timeStayedPerType[1];
+    *(((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)) + 2) += timeStayedPerType[2];
+    sem_post(statisticsMux);
+}
+
+
+void printStatistics(char *shmPointer) {
+    printf("busesEntered: %d | busesDeparted: %d | VOR busesDeparted: %d | ASK busesDeparted: %d | PEL busesDeparted: %d | passengersDisembarked: %d | passengersBoarded: %d | timeStayed: %f | VOR timeStayed: %f | ASK timeStayed: %f | PEL timeStayed: %f\n", *((int *) (shmPointer + TOTALBUSESENTEREDCOUNT_OFFSET)), *((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNT_OFFSET)), *((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)), *(((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)) + 1), *(((int *) (shmPointer + TOTALBUSESDEPARTEDCOUNTPERTYPE_OFFSET)) + 2), *((int *) (shmPointer + TOTALPASSENGERSDISEMBARKEDCOUNT_OFFSET)), *((int *) (shmPointer + TOTALPASSENGERSBOARDEDCOUNT_OFFSET)), *((double *) (shmPointer + TOTALTIMESTAYED_OFFSET)), *((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)), *(((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)) + 1), *(((double *) (shmPointer + TOTALTIMESTAYEDPERTYPE_OFFSET)) + 2));
 }
 
 
