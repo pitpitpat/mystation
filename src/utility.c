@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <semaphore.h>
 #include <time.h>
 
 #include "utility.h"
 #include "sharedMemory.h"
+
 
 void* callAndCheckPointer(void *response, char *errorName) {
     if (response == NULL){

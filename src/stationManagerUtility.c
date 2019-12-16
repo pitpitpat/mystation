@@ -5,8 +5,8 @@
 #include <semaphore.h>
 
 #include "stationManagerUtility.h"
-#include "sharedMemory.h"
 #include "utility.h"
+#include "sharedMemory.h"
 #include "isleInfo.h"
 
 
