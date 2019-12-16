@@ -37,7 +37,6 @@ void serveIncomingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     memcpy(busType, shmPointer + BUSTYPE_OFFSET, BUSTYPE_SIZE);
     memcpy(&busPid, shmPointer + BUSPID_OFFSET, BUSPID_SIZE);
     memcpy(&passengersDisembarkedCount, shmPointer + PASSENGERSCOUNT_OFFSET, PASSENGERSCOUNT_SIZE);
-    // printf("SManager: Read busType %s passengersDisembarkedCount %d\n", busType, passengersDisembarkedCount);
 
     getAvailableIsleOrServeOutgoingBuses(shmPointer, bayCapacityPerType, busType, busesLeft, bayType, &isleIndex);
 
@@ -48,7 +47,6 @@ void serveIncomingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     insertEntryToReferenceLedger(now, busPid, busType, bayType, isleIndex, passengersDisembarkedCount, "Entered");
     increaseStatistics(shmPointer, 1, 0, busesDepartedCountPerType, passengersDisembarkedCount, 0, 0, timeStayedPerType);
 
-    // printf("SManager: Write bayType %s isleIndex %d   capacity %d -> %d\n", bayType, isleIndex, bayCapacityPerType[getIndexFromType(bayType)] + 1, bayCapacityPerType[getIndexFromType(bayType)]);
     memcpy(shmPointer + BAYTYPE_OFFSET, bayType, BAYTYPE_SIZE);
     memcpy(shmPointer + ISLEINDEX_OFFSET, &isleIndex, ISLEINDEX_SIZE);
     sem_post(messageReadMux);
@@ -61,7 +59,6 @@ void serveIncomingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
 void getAvailableIsleOrServeOutgoingBuses(char *shmPointer, int bayCapacityPerType[3], char *busType, int *busesLeft, char *bayType, int *isleIndex) {
     int found = findEmptyBayAndIsle(shmPointer, bayCapacityPerType, busType, bayType, isleIndex);
     if (!found) {
-        // printf("SManager: Waiting for an outgoing bus to free a spot\n");
         serveOutgoingBusesToFreeAnIsle(shmPointer, bayCapacityPerType, busType, busesLeft, bayType, isleIndex);
     }
 }
@@ -156,7 +153,6 @@ void serveOutgoingBus(char *shmPointer, int bayCapacityPerType[3], int *busesLef
     memcpy(&passengersBoardedCount, shmPointer + PASSENGERSCOUNT_OFFSET, PASSENGERSCOUNT_SIZE);
     memcpy(bayType, shmPointer + BAYTYPE_OFFSET, BAYTYPE_SIZE);
     memcpy(&isleIndex, shmPointer + ISLEINDEX_OFFSET, ISLEINDEX_SIZE);
-    // printf("SManager: Read busType %s passengersBoardedCount %d bayType %s isleIndex %d\n", busType, passengersBoardedCount, bayType, isleIndex);
 
     now = time(NULL);
     int busesDepartedCountPerType[3] = {0, 0, 0};

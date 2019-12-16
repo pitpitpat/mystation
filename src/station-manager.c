@@ -30,7 +30,6 @@ int main(int argc, char *argv[]) {
     memcpy(bayCapacityPerType, shmPointer + BAYCAPACITYPERTYPE_OFFSET, BAYCAPACITYPERTYPE_SIZE);
 
     while(1) {
-        // printf("     AFTER SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
         sem_wait(busesMux);
 
         if (*incomingManTime == 0) {
@@ -39,7 +38,6 @@ int main(int argc, char *argv[]) {
             if (incomingBusesCount > 0) {
                 serveIncomingBus(shmPointer, bayCapacityPerType, &busesLeft);
             } else {
-                // printf("SManager: Sleep outgoingManTime %d sec\n", *outgoingManTime);
                 sleep(*outgoingManTime);
                 *outgoingManTime = 0;
 
@@ -53,7 +51,6 @@ int main(int argc, char *argv[]) {
             if (outgoingBusesCount > 0) {
                 serveOutgoingBus(shmPointer, bayCapacityPerType, &busesLeft);
             } else {
-                // printf("SManager: Sleep incomingManTime %d sec\n", *incomingManTime);
                 sleep(*incomingManTime);
                 *incomingManTime = 0;
 
@@ -68,7 +65,6 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // printf("    BEFORE SLEEP INCOMING: %d OUTGOING: %d\n", *incomingManTime, *outgoingManTime);
         sleepUntilOneLaneIsOpen(incomingManTime, outgoingManTime);
     }
 

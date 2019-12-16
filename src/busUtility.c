@@ -38,7 +38,6 @@ int getRandomInteger(int maxValue) {
 int waitForNewPassengers(int maxParkPeriod, int maxPassengerCapacity) {
     int parkingDuration = getRandomInteger(maxParkPeriod);
     int passengersBoardedCount = getRandomInteger(maxPassengerCapacity);
-    // printf("Bus %d: Waiting %d sec for passengers\n", getpid(), parkingDuration);
     sleep(parkingDuration);
     return passengersBoardedCount;
 }
@@ -49,8 +48,6 @@ void getServiceForEntranceByStationManager(char *shmPointer, char *busType, int 
     sem_t *messageReadMux = (sem_t *) (shmPointer + MESSAGEREADMUTEX_OFFSET);
     pid_t busPid = getpid();
 
-    // printf("\n---- Communicating Entrance ----\n");
-    // printf("Bus %d: Write busType %s passengersCount %d mantime %d\n", busPid, busType, passengersCount, mantime);
     memcpy(shmPointer + BUSTYPE_OFFSET, busType, BUSTYPE_SIZE);
     memcpy(shmPointer + BUSPID_OFFSET, &busPid, BUSPID_SIZE);
     memcpy(shmPointer + PASSENGERSCOUNT_OFFSET, &passengersCount, PASSENGERSCOUNT_SIZE);
@@ -62,7 +59,6 @@ void getServiceForEntranceByStationManager(char *shmPointer, char *busType, int 
 
     memcpy(parkingBayType, shmPointer + BAYTYPE_OFFSET, BAYTYPE_SIZE);
     memcpy(parkingIsleIndex, shmPointer + ISLEINDEX_OFFSET, ISLEINDEX_SIZE);
-    // printf("Bus %d: Read parkingBayType %s parkingIsleIndex %d\n\n", busPid, parkingBayType, *parkingIsleIndex);
     sem_post(messageSentMux);
 }
 
@@ -72,8 +68,6 @@ void getServiceForDepartureByStationManager(char *shmPointer, char *busType, int
     sem_t *messageRead2Mux = (sem_t *) (shmPointer + MESSAGEREAD2MUTEX_OFFSET);
     pid_t busPid = getpid();
 
-    // printf("\n---- Communicating Departure----\n");
-    // printf("Bus %d: Write busType %s passengersBoardedCount %d parkingBayType %s parkingIsleIndex %d mantime %d\n", busPid, busType, passengersBoardedCount, parkingBayType, parkingIsleIndex, mantime);
     memcpy(shmPointer + BUSTYPE_OFFSET, busType, BUSTYPE_SIZE);
     memcpy(shmPointer + BUSPID_OFFSET, &busPid, BUSPID_SIZE);
     memcpy(shmPointer + PASSENGERSCOUNT_OFFSET, &passengersBoardedCount, PASSENGERSCOUNT_SIZE);
@@ -90,6 +84,5 @@ void getServiceForDepartureByStationManager(char *shmPointer, char *busType, int
 
 
 void maneuver(int duration) {
-    // printf("Bus %d: Maneuver for %d sec\n", getpid(), duration);
     sleep(duration);
 }
