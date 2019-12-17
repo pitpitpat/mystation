@@ -19,14 +19,14 @@ int main(int argc, char *argv[]) {
     char *shmPointer = (char *) attachToSharedMemory(shmid);
 
     while(1) {
-        if (timesUntilNextPrint[0] == 0) {
-            printCurrentInfo(shmPointer);
-            timesUntilNextPrint[0] = time;
-        }
-
         if (timesUntilNextPrint[1] == 0) {
             printStatistics(shmPointer);
             timesUntilNextPrint[1] = stattimes;
+        }
+
+        if (timesUntilNextPrint[0] == 0) {
+            printCurrentInfo(shmPointer);
+            timesUntilNextPrint[0] = time;
         }
 
         if (checkAllBusesServed(shmPointer)) break;
